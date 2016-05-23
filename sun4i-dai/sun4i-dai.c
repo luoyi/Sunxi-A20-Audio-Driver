@@ -206,7 +206,6 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 {
 	unsigned int clk_rate;
 	int bclk_div, mclk_div;
-	int i;
 
 	printk("%s +%d\n", __func__, __LINE__);
 
@@ -422,36 +421,44 @@ static int sun4i_dai_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 static void sun4i_dai_start_playback(struct sun4i_dai *sdai)
 {
 	/* Flush TX FIFO */
-        regmap_update_bits(sdai->regmap, SUN4I_DAI_FIFO_CTRL_REG,
-			   SUN4I_DAI_FIFO_CTRL_FLUSH_TX,
-			   SUN4I_DAI_FIFO_CTRL_FLUSH_TX);
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_FIFO_CTRL_REG,
+			SUN4I_DAI_FIFO_CTRL_FLUSH_TX,
+			SUN4I_DAI_FIFO_CTRL_FLUSH_TX);
 
-        /* Clear TX counter */
+	/* Clear TX counter */
 	regmap_write(sdai->regmap, SUN4I_DAI_TX_CNT_REG, 0);
 
-        /* Enable TX Block */
-        regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
-			   SUN4I_DAI_CTRL_TX_EN,
-			   SUN4I_DAI_CTRL_TX_EN);
+	/* Enable TX Block */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_TX_EN,
+			SUN4I_DAI_CTRL_TX_EN);
 
-        /* Enable TX DRQ */
-        regmap_update_bits(sdai->regmap, SUN4I_DAI_DMA_INT_CTRL_REG,
-			   SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN,
-			   SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN);
+	/* Enable TX DRQ */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_DMA_INT_CTRL_REG,
+			SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN,
+			SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN);
+	/* Enable I2S0 Engine */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_SDO_EN_MASK,
+			SUN4I_DAI_CTRL_SDO_EN(0));
 }
 
 
 static void sun4i_dai_stop_playback(struct sun4i_dai *sdai)
 {
-        /* Disable TX Block */
-        regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
-			   SUN4I_DAI_CTRL_TX_EN,
-			   0);
+	/* Disable TX Block */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_TX_EN,
+			0);
 
-        /* Disable TX DRQ */
-        regmap_update_bits(sdai->regmap, SUN4I_DAI_DMA_INT_CTRL_REG,
-			   SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN,
-			   0);
+	/* Disable TX DRQ */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_DMA_INT_CTRL_REG,
+			SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN,
+			0);
+	/* Disable I2S0 Engine */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_SDO_EN_MASK,
+			0);
 }
 
 static int sun4i_dai_trigger(struct snd_pcm_substream *substream, int cmd,
