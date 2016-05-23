@@ -564,10 +564,7 @@ static int sun4i_dai_dai_probe(struct snd_soc_dai *dai)
 
 #define SUN4I_RATES	SNDRV_PCM_RATE_8000_192000
 
-#define SUN4I_FORMATS	(SNDRV_PCM_FORMAT_S16_LE | \
-				SNDRV_PCM_FORMAT_S20_3LE | \
-				SNDRV_PCM_FORMAT_S24_LE | \
-				SNDRV_PCM_FORMAT_S32_LE)
+#define SUN4I_FORMATS	(SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE)
 
 static struct snd_soc_dai_driver sun4i_dai_dai = {
 	.probe = sun4i_dai_dai_probe,
