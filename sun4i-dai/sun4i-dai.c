@@ -112,6 +112,8 @@ static const struct sun4i_dai_clk_div sun4i_dai_bclk_div[] = {
 	{ .div = 8, .val = 3 },
 	{ .div = 12, .val = 4 },
 	{ .div = 16, .val = 5 },
+	{ .div = 32, .val = 6 },
+	{ .div = 64, .val = 7 },
 	{ /* Sentinel */ },
 };
 
@@ -124,8 +126,37 @@ static const struct sun4i_dai_clk_div sun4i_dai_mclk_div[] = {
 	{ .div = 12, .val = 5 },
 	{ .div = 16, .val = 6 },
 	{ .div = 24, .val = 7 },
+	{ .div = 32, .val = 8 },
+	{ .div = 48, .val = 9 },
+	{ .div = 64, .val = 10 },
 	{ /* Sentinel */ },
 };
+
+
+static int calc_bclk_mclk(unsigned int rate, unsigned int pll2, unsigned int wss, 
+		unsigned chan_num, unsigned int* pbclk, unsigned int * pmclk) 
+{
+	int i;
+	int j;
+
+	unsigned int mb = pll2/(rate * wss * chan_num);
+
+	for (i = 0; sun4i_dai_mclk_div[i].div; i++) {
+		for (j = 0; sun4i_dai_bclk_div[j].div; j++) {
+			unsigned int m = sun4i_dai_mclk_div[i].div;
+			unsigned int b = sun4i_dai_bclk_div[j].div;
+			if ( m * b == mb ) {
+				*pbclk = sun4i_dai_bclk_div[j].val;
+				*pmclk = sun4i_dai_mclk_div[i].val;
+				return 0;
+			}
+		}
+	}
+	*pbclk = -1;
+	*pmclk = -1;
+	return -EINVAL;
+}
+
 
 static int sun4i_dai_params_to_sr(struct snd_pcm_hw_params *params)
 {
@@ -151,7 +182,7 @@ static int sun4i_dai_params_to_sr(struct snd_pcm_hw_params *params)
 static u8 sun4i_dai_params_to_wss(struct snd_pcm_hw_params *params)
 {
 	int ret = -EINVAL;
-	switch (params_width(params)) {
+	switch (params_physical_width(params)) {
 	case 16:
 		ret = 0;
 		break;
@@ -168,43 +199,6 @@ static u8 sun4i_dai_params_to_wss(struct snd_pcm_hw_params *params)
 
 	return ret;
 }
-
-static int sun4i_dai_get_bclk_div(struct sun4i_dai *sdai,
-				  unsigned int oversample_rate,
-				  unsigned int word_size)
-{
-	int div = oversample_rate / word_size / 2;
-	int i;
-
-	for (i = 0; sun4i_dai_bclk_div[i].div; i++) {
-		const struct sun4i_dai_clk_div *bdiv = sun4i_dai_bclk_div + i;
-
-		if (bdiv->div == div)
-			return bdiv->val;
-	}
-
-	return -EINVAL;
-}
-
-static int sun4i_dai_get_mclk_div(struct sun4i_dai *sdai,
-				  unsigned int oversample_rate,
-				  unsigned int module_rate,
-				  unsigned int sampling_rate)
-{
-	int div = module_rate / sampling_rate / oversample_rate;
-	int i;
-
-	for (i = 0; sun4i_dai_mclk_div[i].div; i++) {
-		const struct sun4i_dai_clk_div *mdiv = sun4i_dai_mclk_div + i;
-
-		if (mdiv->div == div)
-			return mdiv->val;
-	}
-
-	return -EINVAL;
-}
-
-static int sun4i_dai_oversample_rates[] = { 128, 192, 256, 384, 512, 768 };
 
 static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 				  unsigned int rate,
@@ -253,27 +247,15 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 	}
 	writel(0x80030000, sdai->ccu_regs + 0x00B8);
 
-	/* Always favor the highest oversampling rate */
-	for (i = (ARRAY_SIZE(sun4i_dai_oversample_rates) - 1); i >= 0; i--) {
-		unsigned int oversample_rate = sun4i_dai_oversample_rates[i];
 
-		bclk_div = sun4i_dai_get_bclk_div(sdai, oversample_rate,
-						  word_size);
-		mclk_div = sun4i_dai_get_mclk_div(sdai, oversample_rate,
-						  clk_rate,
-						  rate);
-
-		printk("%s rate %dHz oversample rate %d fs mclk %d bclk %d\n", __func__, rate,
-		       oversample_rate, mclk_div, bclk_div);
-
-		if ((bclk_div >= 0) && (mclk_div >= 0))
-			break;
-	}
-
-	if (bclk_div <= 0 && mclk_div <= 0)
+	if ( 0 != calc_bclk_mclk(rate, clk_rate, 
+				word_size, 2, 
+				&bclk_div, &mclk_div) ) {
+		printk("calc bclk mclk error! rate = %d, pll2 = %d, wss = %d\n", rate, clk_rate, word_size); 
 		return -EINVAL;
-
-	printk("%s +%d\n", __func__, __LINE__);
+	}
+	
+	printk("mclk %d bclk %d\n", mclk_div, bclk_div);
 
 	regmap_write(sdai->regmap, SUN4I_DAI_CLK_DIV_REG,
 		     SUN4I_DAI_CLK_DIV_BCLK(bclk_div) |
@@ -323,6 +305,9 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 	case 16:
 		width = DMA_SLAVE_BUSWIDTH_2_BYTES;
 		break;
+	case 32:
+		width = DMA_SLAVE_BUSWIDTH_4_BYTES;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -349,7 +334,7 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 	printk("%s +%d\n", __func__, __LINE__);
 
 	return sun4i_dai_set_clk_rate(sdai, params_rate(params),
-				      params_width(params));
+				      params_physical_width(params));
 }
 
 static int sun4i_dai_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
