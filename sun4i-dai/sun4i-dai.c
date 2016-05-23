@@ -87,8 +87,12 @@
 #define SUN4I_DAI_RX_CHAN_SEL_REG	0x38
 #define SUN4I_DAI_RX_CHAN_MAP_REG	0x3c
 
+/*some pll2 hack */
+#define SUNXI_IISBASE       (0x01C22400)
+
 struct sun4i_dai {
 	struct platform_device *pdev;
+	void __iomem   *ccu_regs;
 	struct clk	*bus_clk;
 	struct clk	*mod_clk;
 	struct regmap	*regmap;
@@ -241,6 +245,13 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 	printk("%s +%d\n", __func__, __LINE__);
 
 	clk_set_rate(sdai->mod_clk, clk_rate);
+
+	if ( clk_rate == 22579200 ) {
+		writel(0x90104F15, sdai->ccu_regs + 0x0008);
+	} else {
+		writel(0x90105615, sdai->ccu_regs + 0x0008);
+	}
+	writel(0x80030000, sdai->ccu_regs + 0x00B8);
 
 	/* Always favor the highest oversampling rate */
 	for (i = (ARRAY_SIZE(sun4i_dai_oversample_rates) - 1); i >= 0; i--) {
@@ -631,6 +642,12 @@ static int sun4i_dai_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Can't get our mod clock\n");
 		ret = PTR_ERR(sdai->mod_clk);
 		goto err_disable_clk;
+	}
+
+	sdai->ccu_regs = ioremap(0x01C20000, 0x200);
+	if (sdai->ccu_regs == NULL) {
+		dev_err(&pdev->dev, "Can't iomap ccu register\n");
+		return -ENXIO;
 	}
 	
 	sdai->playback_dma_data.addr = res->start + SUN4I_DAI_FIFO_TX_REG;
