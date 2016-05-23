@@ -235,8 +235,6 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 		return -EINVAL;
         }
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	clk_set_rate(sdai->mod_clk, clk_rate);
 
 	if ( clk_rate == 22579200 ) {
@@ -261,8 +259,6 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 		     SUN4I_DAI_CLK_DIV_MCLK(mclk_div) |
 		     SUN4I_DAI_CLK_DIV_MCLK_EN);
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	return 0;
 }
 
@@ -274,31 +270,21 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 	int sr, wss;
 	u32 width;
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	if (params_channels(params) != 2)
 		return -EINVAL;
-
-	printk("%s +%d\n", __func__, __LINE__);
 
 	/* Enable the first output line */
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
 			   SUN4I_DAI_CTRL_SDO_EN_MASK,
 			   SUN4I_DAI_CTRL_SDO_EN(0));
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	/* Enable the first two channels */
 	regmap_write(sdai->regmap, SUN4I_DAI_TX_CHAN_SEL_REG,
 		     SUN4I_DAI_TX_CHAN_SEL(2));
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	/* Map them to the two first samples coming in */
 	regmap_write(sdai->regmap, SUN4I_DAI_TX_CHAN_MAP_REG,
 		     SUN4I_DAI_TX_CHAN_MAP(0, 0) | SUN4I_DAI_TX_CHAN_MAP(1, 1));
-
-	printk("%s +%d\n", __func__, __LINE__);
 
 	switch (params_physical_width(params)) {
 	case 16:
@@ -312,25 +298,17 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 	}
 	sdai->playback_dma_data.addr_width = width;
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	sr = sun4i_dai_params_to_sr(params);
 	if (sr < 0)
 		return -EINVAL;
-
-	printk("%s +%d\n", __func__, __LINE__);
 
 	wss = sun4i_dai_params_to_wss(params);
 	if (wss < 0)
 		return -EINVAL;
 
-	printk("%s +%d\n", __func__, __LINE__);
-
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_FMT0_REG,
 			   SUN4I_DAI_FMT0_WSS_MASK | SUN4I_DAI_FMT0_SR_MASK,
 			   SUN4I_DAI_FMT0_WSS(wss) | SUN4I_DAI_FMT0_SR(sr));
-
-	printk("%s +%d\n", __func__, __LINE__);
 
 	return sun4i_dai_set_clk_rate(sdai, params_rate(params),
 				      params_physical_width(params));
@@ -487,29 +465,6 @@ static int sun4i_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 
 	default:
 		return -EINVAL;
-	}
-	{
-	/* COOPS DEBUGGING FOR NOW */
-	struct platform_device *pdev = sdai->pdev;
-	u32 reg_val = 0;
-
-	dev_err(&pdev->dev,
-			"Command State %d Audio Clock is %lu\n", cmd, clk_get_rate(sdai->mod_clk));
-	regmap_read(sdai->regmap, SUN4I_DAI_CTRL_REG, &reg_val);
-	dev_err(&pdev->dev,
-			"SUN4I_DAI_CTRL_REG 0x%x\n", reg_val);
-	regmap_read(sdai->regmap, SUN4I_DAI_FMT0_REG, &reg_val);
-	dev_err(&pdev->dev,
-			"SUN4I_DAI_FMT0_REG 0x%x\n", reg_val);
-	regmap_read(sdai->regmap, SUN4I_DAI_FMT1_REG, &reg_val);
-	dev_err(&pdev->dev,
-			"SUN4I_DAI_FMT1_REG 0x%x\n", reg_val);
-	regmap_read(sdai->regmap, SUN4I_DAI_FIFO_CTRL_REG, &reg_val);
-	dev_err(&pdev->dev,
-			"SUN4I_DAI_FIFO_CTRL_REG 0x%x\n", reg_val);
-	regmap_read(sdai->regmap, SUN4I_DAI_FIFO_STA_REG, &reg_val);
-	dev_err(&pdev->dev,
-			"SUN4I_DAI_FIFO_STA_REG 0x%x\n", reg_val);
 	}
 
 	return 0;
@@ -689,6 +644,7 @@ static struct platform_driver sun4i_dai_driver = {
 };
 module_platform_driver(sun4i_dai_driver);
 
+MODULE_AUTHOR("LuoYi <luoyi.ly@gmail.com>");
 MODULE_AUTHOR("Andrea Venturi <be17068@iperbole.bo.it>");
 MODULE_AUTHOR("Maxime Ripard <maxime.ripard@free-electrons.com>");
 MODULE_DESCRIPTION("Allwinner A10 DAI driver");
