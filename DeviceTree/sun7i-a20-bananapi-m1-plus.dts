@@ -80,6 +80,13 @@
 		};
 	};
 
+	mmc3_pwrseq: mmc3_pwrseq {
+		compatible = "mmc-pwrseq-simple";
+		pinctrl-names = "default";
+		pinctrl-0 = <&mmc3_pwrseq_pin_bananapim1plus>;
+		reset-gpios = <&pio 7 22 GPIO_ACTIVE_LOW>; /* PH22 WL-PMU-EN */
+	};
+
 	reg_gmac_3v3: gmac-3v3 {
 		compatible = "regulator-fixed";
 		pinctrl-names = "default";
@@ -92,25 +99,12 @@
 		gpio = <&pio 7 23 GPIO_ACTIVE_HIGH>;
 	};
 
-	reg_vmmc3: vmmc3 {
-		compatible = "regulator-fixed";
-		pinctrl-names = "default";
-		pinctrl-0 = <&vmmc3_pin_bananapi>;
-		regulator-name = "vmmc3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-always-on;
-		regulator-boot-on;
-		enable-active-high;
-		gpio = <&pio 7 22 GPIO_ACTIVE_HIGH>;
+	pcm5102: pcm510x {
+		compatible = "ti,pcm510x";
+		pcm510x,format = "i2s";
+		#sound-dai-cells = <0>;
 	};
 
-        pcm5102: pcm510x {
-                compatible = "ti,pcm510x";
-                pcm510x,format = "i2s";
-                #sound-dai-cells = <0>;
-        };
-/*
 	sound_i2s {
 		compatible = "simple-audio-card";
 		simple-audio-card,format = "i2s";
@@ -129,7 +123,6 @@
 			"Line", "Line Out Jack",
 			"Microphone", "Mic Jack";
 
-		//simple-audio-card,mclk-fs = <256>; // as it's not supported in dai codec driver, see asoc_simple_card_hw_params() in sound/soc/generic/simple-card.c
 
 		simple-audio-card,cpu {
 			sound-dai = <&i2s0>;
@@ -139,7 +132,7 @@
 			sound-dai = <&ext_codec>;
 		};
 	};
-*/
+	/*
 	sound {
 		compatible = "simple-audio-card";
 		simple-audio-card,name = "A20-Audio";
@@ -169,6 +162,7 @@
 		compatible = "linux,spdif-dit";
 		#sound-dai-cells = <0>;
 	};
+	*/
 };
 
 &ahci {
@@ -267,7 +261,8 @@
 	#size-cells = <0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&mmc3_pins_a>;
-	vmmc-supply = <&reg_vmmc3>;
+	vmmc-supply = <&reg_vcc3v3>;
+	mmc-pwrseq = <&mmc3_pwrseq>;
 	bus-width = <4>;
 	non-removable;
 	enable-sdio-wakeup;
@@ -284,8 +279,8 @@
 };
 
 &mmc3_pins_a {
-        /* AP6210 requires pull-up */
-		        allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
+	/* AP6210 requires pull-up */
+	allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
 };
 
 &pio {
@@ -310,6 +305,13 @@
 		allwinner,pull = <SUN4I_PINCTRL_PULL_UP>;
 	};
 
+	mmc3_pwrseq_pin_bananapim1plus: mmc3_pwrseq_pin@0 {
+		allwinner,pins = "PH22";
+		allwinner,function = "gpio_out";
+		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
+		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
+	};
+
 	usb1_vbus_pin_bananapi: usb1_vbus_pin@0 {
 		allwinner,pins = "PH0";
 		allwinner,function = "gpio_out";
@@ -319,13 +321,6 @@
 
 	usb2_vbus_pin_bananapi: usb2_vbus_pin@0 {
 		allwinner,pins = "PH1";
-		allwinner,function = "gpio_out";
-		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
-		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
-	};
-
-	vmmc3_pin_bananapi: vmmc3_pin@0 {
-		allwinner,pins = "PH22";
 		allwinner,function = "gpio_out";
 		allwinner,drive = <SUN4I_PINCTRL_10_MA>;
 		allwinner,pull = <SUN4I_PINCTRL_NO_PULL>;
