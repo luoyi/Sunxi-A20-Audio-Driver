@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Andrea Venturi
+  Copyright (C) 2015 Andrea Venturi
  * Andrea Venturi <be17068@iperbole.bo.it>
  *
  * Copyright (C) 2015 Maxime Ripard
@@ -253,10 +253,11 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 			writel(0x90105615, sdai->ccu_regs + 0x0008);
 		}
 		writel(0x80030000, sdai->ccu_regs + 0x00B8);
+	} else {
+		printk("clk rate keep %d \n", sdai->cur_clk );
 	}
 
 	sdai->cur_clk = clk_rate;
-
 
 
 	if ( 0 != calc_bclk_mclk(rate, clk_rate, 
@@ -269,6 +270,7 @@ static int sun4i_dai_set_clk_rate(struct sun4i_dai *sdai,
 
 	if ( sdai->cur_mclk_div != mclk_div || sdai->cur_bclk_div != bclk_div ) {
 		printk("set mclk %d bclk %d\n", mclk_div, bclk_div);
+
 		regmap_write(sdai->regmap, SUN4I_DAI_CLK_DIV_REG,
 				SUN4I_DAI_CLK_DIV_BCLK(bclk_div) |
 				SUN4I_DAI_CLK_DIV_MCLK(mclk_div) |
@@ -326,12 +328,9 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 	if (wss < 0)
 		return -EINVAL;
 
-	/* disable the i2s0 */
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
-			   SUN4I_DAI_CTRL_SDO_EN_MASK,
-			   0);
-
-    sun4i_dai_stop_playback(sdai);
+			SUN4I_DAI_CTRL_GL_EN,
+			0);
 	msleep(200);
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_FMT0_REG,
 			   SUN4I_DAI_FMT0_WSS_MASK | SUN4I_DAI_FMT0_SR_MASK,
@@ -339,8 +338,10 @@ static int sun4i_dai_hw_params(struct snd_pcm_substream *substream,
 
 	sun4i_dai_set_clk_rate(sdai, params_rate(params),
 				      params_physical_width(params));
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_GL_EN,
+			1);
 	msleep(200);
-    sun4i_dai_start_playback(sdai);
 	return 0;
 }
 
@@ -429,13 +430,13 @@ static int sun4i_dai_set_fmt(struct snd_soc_dai *dai, unsigned int fmt)
 static void sun4i_dai_start_playback(struct sun4i_dai *sdai)
 {
 
-	printk("sun4i_dai_start_playback stage 0");
+	printk("sun4i_dai_start_playback stage 0\n");
+	/* Clear TX counter */
+	regmap_write(sdai->regmap, SUN4I_DAI_TX_CNT_REG, 0);
 	/* Flush TX FIFO */
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_FIFO_CTRL_REG,
 			SUN4I_DAI_FIFO_CTRL_FLUSH_TX,
 			SUN4I_DAI_FIFO_CTRL_FLUSH_TX);
-	/* Clear TX counter */
-	regmap_write(sdai->regmap, SUN4I_DAI_TX_CNT_REG, 0);
 	/* Enable TX Block */
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
 			SUN4I_DAI_CTRL_TX_EN,
@@ -446,31 +447,36 @@ static void sun4i_dai_start_playback(struct sun4i_dai *sdai)
 			SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN,
 			SUN4I_DAI_DMA_INT_CTRL_TX_DRQ_EN);
 
+
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CLK_DIV_REG,
 		     SUN4I_DAI_CLK_DIV_MCLK_EN,
 		     SUN4I_DAI_CLK_DIV_MCLK_EN);
-	printk("sun4i_dai_start_playback stage 1");
+	printk("sun4i_dai_start_playback stage 1\n");
+
+
 	/* Enable I2S0 Engine */
+	/*
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
 			SUN4I_DAI_CTRL_SDO_EN_MASK,
 			SUN4I_DAI_CTRL_SDO_EN(0));
+	*/
 }
 
 
 static void sun4i_dai_stop_playback(struct sun4i_dai *sdai)
 {
 
-	printk("sun4i_dai_stop_playback stage 0");
+	printk("sun4i_dai_stop_playback stage 0\n");
+	return;
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_GL_EN,
+			0);
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CLK_DIV_REG,
 		     SUN4I_DAI_CLK_DIV_MCLK_EN,
 		     0);
 	/* Disable I2S0 Engine */
 	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
 			SUN4I_DAI_CTRL_SDO_EN_MASK,
-			0);
-	/* Disable TX Block */
-	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
-			SUN4I_DAI_CTRL_TX_EN,
 			0);
 
 	/* Disable TX DRQ */
@@ -483,7 +489,11 @@ static void sun4i_dai_stop_playback(struct sun4i_dai *sdai)
 			SUN4I_DAI_FIFO_CTRL_FLUSH_TX);
 	/* Clear TX counter */
 	regmap_write(sdai->regmap, SUN4I_DAI_TX_CNT_REG, 0);
-	printk("sun4i_dai_stop_playback stage 1");
+	/* Disable TX Block */
+	regmap_update_bits(sdai->regmap, SUN4I_DAI_CTRL_REG,
+			SUN4I_DAI_CTRL_TX_EN,
+			0);
+	printk("sun4i_dai_stop_playback stage 1\n");
 }
 
 static int sun4i_dai_trigger(struct snd_pcm_substream *substream, int cmd,
@@ -505,8 +515,7 @@ static int sun4i_dai_trigger(struct snd_pcm_substream *substream, int cmd,
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-			printk("mock stop");
-//			sun4i_dai_stop_playback(sdai);
+			sun4i_dai_stop_playback(sdai);
 			return 0;
 		}	
 		else
